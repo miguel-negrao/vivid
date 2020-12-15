@@ -72,6 +72,8 @@ amplitude = makeUGen
 
 --- detectSilence ::
 --- detectSilence =
+
+
 --- loudness ::
 --- loudness =
 --- peak ::

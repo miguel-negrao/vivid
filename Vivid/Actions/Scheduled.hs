@@ -7,10 +7,12 @@
 --   sure the clocks agree
 
 -- {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE
+     FlexibleInstances
+   , InstanceSigs
+   , KindSignatures
+   , TypeSynonymInstances
+   #-}
 -- {-# LANGUAGE ViewPatterns #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
@@ -19,9 +21,12 @@
 
 module Vivid.Actions.Scheduled (
      Scheduled
-   , doScheduledIn
-   , doScheduledAt
-   , doScheduledNow
+
+   , doScheduledInWith
+
+   , doScheduledAtWith
+
+   , doScheduledNowWith
    ) where
 
 import Vivid.Actions.Class
@@ -33,23 +38,24 @@ import Vivid.SynthDef (SynthDef)
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, mapReaderT)
 import Control.Monad.State (evalStateT, put, get, modify, StateT)
 import Data.ByteString (ByteString)
 import Prelude
 
-type Scheduled = StateT Timestamp IO
+type Scheduled = ReaderT SCServerState (StateT Timestamp IO)
 
 
 instance VividAction Scheduled where
    callOSC :: OSC -> Scheduled ()
    callOSC message = do
       now <- getTime
-      liftIO . callBS . encodeOSCBundle $ OSCBundle now [Right message]
+      mapReaderT liftIO . callBS . encodeOSCBundle $ OSCBundle now [Right message]
 
    callBS :: ByteString -> Scheduled ()
    callBS message = do
       now <- getTime
-      liftIO . callBS . encodeOSCBundle $ OSCBundle now [Left message]
+      mapReaderT liftIO . callBS . encodeOSCBundle $ OSCBundle now [Left message]
 
    sync :: Scheduled ()
    sync = return () -- always right?
@@ -64,13 +70,13 @@ instance VividAction Scheduled where
    getTime = get
 
    newBufferId :: Scheduled BufferId
-   newBufferId = liftIO newBufferId
+   newBufferId = mapReaderT liftIO (newBufferId :: ReaderT SCServerState IO BufferId)
 
    newNodeId :: Scheduled NodeId
-   newNodeId = liftIO newNodeId
+   newNodeId = mapReaderT liftIO (newNodeId :: ReaderT SCServerState IO NodeId)
 
    newSyncId :: Scheduled SyncId
-   newSyncId = liftIO newSyncId
+   newSyncId = mapReaderT liftIO (newSyncId :: ReaderT SCServerState IO SyncId)
 
    fork :: Scheduled () -> Scheduled ()
    fork action = do
@@ -79,23 +85,24 @@ instance VividAction Scheduled where
       put timeOfFork
 
    defineSD :: SynthDef a -> Scheduled ()
-   defineSD = liftIO . void . forkIO . defineSD
+   defineSD = mapReaderT (liftIO . void . forkIO) . defineSD
 
 -- | Schedule an action to happen at the given time
-doScheduledAt :: Timestamp -> Scheduled a -> IO a
-doScheduledAt startTime action =
-   evalStateT action startTime
+doScheduledAtWith :: SCServerState -> Timestamp -> Scheduled a -> IO a
+doScheduledAtWith serverState startTime action =
+   let stateAction = runReaderT action serverState
+   in evalStateT stateAction startTime
 
 -- | Schedule an action to happen n seconds from now
-doScheduledIn :: Double -> Scheduled a -> IO a
-doScheduledIn numSecs action = do
-   now <- getTime
-   doScheduledAt (addSecs now numSecs) action
+doScheduledInWith :: SCServerState -> Double -> Scheduled x -> IO x
+doScheduledInWith serverState numSecs action = do
+   now <- runReaderT (getTime :: ReaderT SCServerState IO Timestamp) serverState -- Not that the server state matters here
+   doScheduledAtWith serverState (addSecs now numSecs) action
 
 -- | Schedule an action to happen right now. Because of server latency this
 --   could arrive late, so you might want to do something like
 --   @doScheduledIn 0.01@ instead:
-doScheduledNow :: Scheduled a -> IO a
-doScheduledNow action = do
-   now <- getTime
-   doScheduledAt now action
+doScheduledNowWith :: SCServerState -> Scheduled x -> IO x
+doScheduledNowWith serverState action = do
+   now <- runReaderT (getTime :: ReaderT SCServerState IO Timestamp) serverState -- Not that the server state matters here
+   doScheduledAtWith serverState now action

@@ -1,21 +1,23 @@
 -- | UGen argument labels
 -- 
---   These are named the same as their SC counterparts, usually.
+--   These are usually named the same as their sclang counterparts.
 
 {-# OPTIONS_HADDOCK show-extensions #-}
 
 {-# LANGUAGE NoRebindableSyntax #-}
 
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TypeFamilies, NoMonoLocalBinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE
+     ConstraintKinds
+   , DataKinds
+   , ExistentialQuantification
+   , NoMonomorphismRestriction
+   , FlexibleContexts
+   , FlexibleInstances
+   , KindSignatures
+   , PartialTypeSignatures
+   , TypeFamilies, NoMonoLocalBinds
+   , TypeOperators
+   #-}
 
 
 {-# LANGUAGE NoIncoherentInstances #-}
@@ -181,6 +183,13 @@ decaySecs_ = UA . toSig
 decayTime_ :: ToSig s as => s -> UA "decaySecs" as
 decayTime_ = decaySecs_
 
+decayScale_ :: ToSig s as => s -> UA "decayScale" as
+decayScale_ = UA . toSig
+
+-- | SC compatibility
+decayscale_ :: ToSig s as => s -> UA "decayScale" as
+decayscale_ = decayScale_
+
 -- | Alias of 'decaySecs_' for SC compatibility
 decaytime_ :: ToSig s as => s -> UA "decaySecs" as
 decaytime_ = decaySecs_
@@ -285,6 +294,21 @@ freeze_ = UA . toSig
 
 freq_ :: ToSig s as => s -> UA "freq" as
 freq_  = UA . toSig
+
+freqOffset_ :: ToSig s as => s -> UA "freqOffset" as
+freqOffset_ = UA . toSig
+
+-- | SC compatibility:
+freqoffset_ :: ToSig s as => s -> UA "freqOffset" as
+freqoffset_ = freqOffset_
+
+
+freqScale_ :: ToSig s as => s -> UA "freqScale" as
+freqScale_ = UA . toSig
+
+-- | SC compatibility:
+freqscale_ :: ToSig s as => s -> UA "freqScale" as
+freqscale_ = freqScale_
 
 friction_ :: ToSig s as => s -> UA "friction" as
 friction_ = UA . toSig
@@ -647,11 +671,11 @@ makeMakeUGen :: (
    , SDBodyArgs optional ~ SDBodyArgs userSupplied
    , SDBodyArgs optional ~ args
    ) => (UGen -> SDBody' args x) -> Int -> String -> CalculationRate -> Vs tags -> optional -> (userSupplied -> SDBody' args x)
-makeMakeUGen addUGenF numOuts sdName calcRate tagList defaultArgs = \userSupplied -> do
+makeMakeUGen addUGenF numOuts ugenName calcRate tagList defaultArgs = \userSupplied -> do
    theArgList <- Map.fromList <$> fromUAWithDefaults (DefaultArgs defaultArgs) (OverwritingArgs userSupplied)
    let signals =
-          map (\k -> Map.findWithDefault (error $ "that's weird (likely a ugen with a typo in 'Vs'): "++sdName++":"++k) k theArgList) $ getSymbolVals tagList
-   addUGenF $ UGen (UGName_S (UTF8.fromString sdName)) calcRate (signals :: [Signal]) numOuts
+          map (\k -> Map.findWithDefault (error $ "that's weird (likely a ugen with a typo in 'Vs'): "++ugenName++":"++k) k theArgList) $ getSymbolVals tagList
+   addUGenF $ UGen (UGName_S (UTF8.fromString ugenName)) calcRate (signals :: [Signal]) numOuts
 
 makeMonoUGen, makeUGen :: (
      GetSymbolVals (Vs tags)

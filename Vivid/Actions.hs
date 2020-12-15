@@ -5,9 +5,12 @@
 --        The timing is precise, unlike IO
 --   - "Vivid.Actions.NRT" : non-realtime. Writes to an audio file
 
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE
+     DataKinds
+   , OverloadedStrings
+   , ViewPatterns
+   #-}
+   -- , Safe
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -50,36 +53,36 @@ module Vivid.Actions (
    , release
    , releaseIn
    , freeBuf
-   , quitSCServer
+   , quitSCServerWith
    , module Vivid.Actions.Class
    -- , module Vivid.Actions.IO
    , module Vivid.Actions.NRT
    , module Vivid.Actions.Scheduled
 
    , makeSynth
+
+   , MonoOrPoly -- TODO: export?
    ) where
 
 import Vivid.OSC
 import qualified Vivid.SC.Server.Commands as SCCmd
 import Vivid.SC.Server.Types
 import Vivid.SC.SynthDef.Types (CalculationRate(..))
-import Vivid.SC.Server.Types
 
 import Vivid.Actions.Class
 import Vivid.Actions.IO ()
 import Vivid.Actions.NRT
 import Vivid.Actions.Scheduled
-import Vivid.SCServer.Connection (closeSCServerConnection)
-import Vivid.SCServer (defaultGroup)
+import Vivid.SCServer (defaultGroup, SCServerState)
+import Vivid.SCServer.Connection (closeSCServerConnection')
 import Vivid.SCServer.Types
 import Vivid.SynthDef (getSDHashName, sd {- , SDBody -}) -- SynthDef(..), SDBody, Signal)
 -- import Vivid.SynthDef.Types (SDName(..))
 import Vivid.SynthDef.TypesafeArgs
 
-import Control.Arrow (first) -- , second)
+import Control.Monad.Reader (runReaderT)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.ByteString (ByteString)
-import Data.Int
 import Data.Monoid
 
 -- for "play":
@@ -309,10 +312,10 @@ newSynthAfter targetNode theSD params = do
 synthAfter = newSynthAfter
 
 -- | Stop the SuperCollider server
-quitSCServer :: IO ()
-quitSCServer = do
-   callOSC $ SCCmd.quit
-   closeSCServerConnection
+quitSCServerWith :: SCServerState -> IO ()
+quitSCServerWith serverState = do
+   runReaderT (callOSC SCCmd.quit) serverState
+   closeSCServerConnection' serverState
 
 -- | Synchronous
 freeBuf :: VividAction m => BufferId -> m ()

@@ -26,8 +26,11 @@ import Vivid.SC.Server.Types (BufferId(..))
 import Vivid.SynthDef.Types
 
 import qualified Data.ByteString.UTF8 as UTF8
+import Data.Int (Int8, Int16, Int32, Int64)
+import Data.Word (Word8, Word16, Word32, Word64)
 -- import Data.Proxy
 import GHC.TypeLits
+import Numeric.Natural (Natural)
 
 class ToSig s (args :: [Symbol]) where
    toSig :: s -> SDBody' args Signal
@@ -41,17 +44,28 @@ instance (KnownSymbol a, Subset '[a] args) => ToSig (Variable a) args where
 
 #if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 801
 
-instance ToSig Integer args where
-   toSig = pure . Constant . realToFrac
+realSig :: (Real n, Applicative f) => n -> f Signal
+realSig = pure . Constant . realToFrac
 
-instance ToSig Int args where
-   toSig = pure . Constant . realToFrac
+instance ToSig Double       args where toSig = realSig
+instance ToSig Float        args where toSig = realSig
 
-instance ToSig Double args where
-   toSig = pure . Constant . realToFrac
+instance ToSig Rational     args where toSig = realSig
 
-instance ToSig Float args where
-   toSig = pure . Constant . realToFrac
+instance ToSig Integer      args where toSig = realSig
+instance ToSig Natural      args where toSig = realSig
+
+instance ToSig Int          args where toSig = realSig
+instance ToSig Int8         args where toSig = realSig
+instance ToSig Int16        args where toSig = realSig
+instance ToSig Int32        args where toSig = realSig
+instance ToSig Int64        args where toSig = realSig
+
+instance ToSig Word         args where toSig = realSig
+instance ToSig Word8        args where toSig = realSig
+instance ToSig Word16       args where toSig = realSig
+instance ToSig Word32       args where toSig = realSig
+instance ToSig Word64       args where toSig = realSig
 
 #else
 

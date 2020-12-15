@@ -1,9 +1,13 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE
+     DataKinds
+   , OverloadedStrings
+   #-}
 
-{-# LANGUAGE NoIncoherentInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE NoUndecidableInstances #-}
+{-# LANGUAGE
+     NoIncoherentInstances
+   , NoMonomorphismRestriction
+   , NoUndecidableInstances
+   #-}
 
 module Vivid.UGens.Generators.Deterministic (
 ---     blip

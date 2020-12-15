@@ -76,11 +76,11 @@ leastChange :: (ToSig s0 as, ToSig s1 as) => s0 -> s1 -> SDBody' as Signal
 leastChange = leastOrMostChange "LeastChange"
 
 leastOrMostChange :: (ToSig s0 as, ToSig s1 as) => String -> s0 -> s1 -> SDBody' as Signal
-leastOrMostChange sdName s0 s1 = do
+leastOrMostChange ugenName s0 s1 = do
    s0' <- toSig s0
    s1' <- toSig s1
    calcRate <- (maximum::Ord a=>[a]->a) <$> sequence (map getCalcRate [s0', s1'])
-   addUGen $ UGen (UGName_S . UTF8.fromString $ sdName) calcRate [s0',s1'] 1
+   addUGen $ UGen (UGName_S . UTF8.fromString $ ugenName) calcRate [s0',s1'] 1
 
 -- | "Converts a linear range of values to an exponential range of values."
 -- 

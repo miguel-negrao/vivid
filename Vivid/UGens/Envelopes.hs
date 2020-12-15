@@ -174,15 +174,17 @@ linen = makeUGen
 -- | Percussive hit
 -- 
 --   'doneAction' is currently 2 but may either be 0 or 2 in future versions
-percGen :: (Args '[] '["attackSecs", "releaseSecs", "level", "curve", "doneAction"] a) => a -> SDBody a Signal
+percGen :: (Args '[] '["attackSecs", "releaseSecs", "level", "curve", "doneAction", "gate", "fadeSecs"] a) => a -> SDBody a Signal
 percGen userArgs = do
    level <- uaArgWDef_onlyConst (1::Float) userArgs (V::V "level")
    attackTime <- uaArgWDef_onlyConst (0.01::Float) userArgs (V::V "attackSecs")
    releaseTime <- uaArgWDef_onlyConst (1::Float) userArgs (V::V "releaseSecs")
    curve <- uaArgWDef_onlyConst (-4::Float) userArgs (V::V "curve")
    doneAction <- fromEnum <$> uaArgWDef_onlyConst (2::Float) userArgs (V::V "doneAction")
+   gate <- uaArgValWDefault 1 userArgs (V::V "gate")
+   timeScale <- uaArgValWDefault 1 userArgs (V::V "fadeSecs")
 
-   envGen (env 0 [(level, attackTime), (0, releaseTime)] (Curve_Curve curve)) (DoneAction_AsNum doneAction)
+   envGen_wGate gate timeScale (env 0 [(level, attackTime), (0, releaseTime)] (Curve_Curve curve)) (DoneAction_AsNum doneAction)
  where
    uaArgWDef_onlyConst defaultVal args argName =
       uaArgValWDefault defaultVal args argName >>= \case

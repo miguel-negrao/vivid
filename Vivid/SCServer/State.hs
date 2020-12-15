@@ -1,7 +1,9 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE
+     BangPatterns
+   , DataKinds
+   , KindSignatures
+   , LambdaCase
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -12,14 +14,21 @@ module Vivid.SCServer.State (
    , NodeId(..)
    , SyncId(..)
 
-   , scServerState
    , SCServerState(..)
 
-   , setClientId
-   , setMaxBufferIds
+   , ConnProtocol(..)
 
-   , getNextAvailable
+   , setServerClientId
+
+   , setServerMaxBufferIds
+
    , numberOfSyncIdsToDrop
+
+   , makeEmptySCServerState
+
+   -- We might not need to export these (or the global equivalents) at all:
+   , getNextAvailable'
+   , getNextAvailables'
    ) where
 
 import Vivid.OSC (OSC)
@@ -41,19 +50,6 @@ import qualified Data.Set as Set
 import Data.Set (Set)
 import Prelude
 
--- We use this only for "the unsafePerformIO hack"
--- (https://wiki.haskell.org/Top_level_mutable_state) so that functions can
--- refer to the state without being passed the state explicitly. This should
--- still be safe:
-import System.IO.Unsafe (unsafePerformIO)
-
-{-# NOINLINE scServerState #-}
-scServerState :: SCServerState
--- Currently you can only be connected to one SC server at a time. Future
---   versions plan to remove this.
--- See the above note about this use of unsafePerformIO:
-scServerState = unsafePerformIO makeEmptySCServerState
-
 data SCServerState
    = SCServerState
    -- We use 'IORef Maybe's instead of MVars so we can use weak pointer
@@ -69,17 +65,26 @@ data SCServerState
   , _scServerState_syncIdMailboxes :: !(TVar (Map SyncId (MVar ())))
   , _scServerState_serverMessageFunction :: !(TVar (OSC -> IO ()))
   , _scServerState_definedSDs :: !(TVar (Set (SDName, Int))) -- Int is the hash
+  , _scServerState_connProtocol :: TVar ConnProtocol -- This doesn't change after boot, but we could e.g. disconnect and reconnect after boot
   }
 
-setClientId :: Int32 -> IO ()
-setClientId clientId = do
+data ConnProtocol
+   = ConnProtocol_UDP
+   | ConnProtocol_TCP
+ deriving (Show, Read, Eq, Ord)
+
+setServerClientId :: SCServerState -> Int32 -> IO ()
+setServerClientId serverState clientId = do
    when (clientId < 0 || clientId > 31) $
       error "client id must be betw 0 and 31"
-   atomically $ writeTVar (_scServerState_availableNodeIds scServerState) $
+   atomically $ writeTVar (_scServerState_availableNodeIds serverState) $
       -- The client id is the first 5 bits of a positive int:
       -- Note the incrementing gets weird once we hit the (.&.) -- should
       -- fix if anyone plans to use more than 33 million nodes
-      (flip map) [1000..] $ \nodeNum -> NodeId $
+      map f [1000..]
+ where
+   f :: Int32 -> NodeId
+   f nodeNum = NodeId $
          ((clientId `shiftL` ((finiteBitSize nodeNum-5)-1)) .|.) $
             ((maxBound `shiftR` 5) .&. nodeNum)
 
@@ -103,6 +108,7 @@ makeEmptySCServerState = do -- atomically $ do
    syncMailboxes <- newTVarIO $ Map.empty
    serverMessageFunction <- newTVarIO $ \_ -> return ()
    definedSDs <- newTVarIO $ Set.empty
+   connProtocolVar <- newTVarIO ConnProtocol_UDP
 
    return $ SCServerState
           { _scServerState_socketConnectStarted = sockConnectStarted
@@ -115,6 +121,7 @@ makeEmptySCServerState = do -- atomically $ do
           , _scServerState_syncIdMailboxes = syncMailboxes
           , _scServerState_serverMessageFunction = serverMessageFunction
           , _scServerState_definedSDs = definedSDs
+          , _scServerState_connProtocol = connProtocolVar
           }
 
 -- | If you've started the SC server with a non-default number of buffer ids,
@@ -122,21 +129,23 @@ makeEmptySCServerState = do -- atomically $ do
 -- 
 --   Note that the buffer ids start at 512, to not clash with any that
 --   another client (e.g. sclang) has allocated
-setMaxBufferIds :: Int32 -> IO ()
-setMaxBufferIds newMax = atomically $
-   writeTVar (_scServerState_maxBufIds scServerState) newMax
+setServerMaxBufferIds :: SCServerState -> Int32 -> IO ()
+setServerMaxBufferIds serverState newMax =
+   atomically $
+      writeTVar (_scServerState_maxBufIds serverState) newMax
 
-getNextAvailable :: (SCServerState -> TVar [a]) -> IO a
-getNextAvailable getter =
-   getNextAvailables 1 getter >>= \case
+getNextAvailable' :: SCServerState -> (SCServerState -> TVar [a]) -> IO a
+getNextAvailable' serverState getter =
+   getNextAvailables' serverState 1 getter >>= \case
       [x] -> return x
       _ -> error "i don't even - 938"
 
-getNextAvailables :: Int -> (SCServerState -> TVar [a]) -> IO [a]
-getNextAvailables numToGet getter = do
-   let !_ = scServerState
+getNextAvailables' :: SCServerState -> Int -> (SCServerState -> TVar [a]) -> IO [a]
+getNextAvailables' serverState numToGet getter = do
+   let !_ = serverState
    atomically $ do
-      let avail = getter scServerState
+      let avail = getter serverState
       (ns, rest) <- splitAt numToGet <$> readTVar avail
       writeTVar avail rest
       return ns
+

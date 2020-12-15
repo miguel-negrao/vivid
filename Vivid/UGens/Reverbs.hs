@@ -22,6 +22,7 @@ freeVerb :: (Args '["in"] '["mix", "room", "damp"] a) => a -> SDBody a Signal
 freeVerb = makeUGen
    "FreeVerb" AR
    (Vs::Vs '["in", "mix", "room", "damp"])
+   -- Strangely in SC it's "0.33" instead of (1/3) (greater precision). If we want exact compatibility we should switch to match that:
    (mix_ (1/3::Float), room_ (0.5::Float), damp_ (0.5::Float))
 
 --- freeVerb2 ::

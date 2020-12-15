@@ -3,11 +3,13 @@
 {-# OPTIONS_HADDOCK show-extensions #-}
 -- {-# LANGUAGE DeriveGeneric #-}
 
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE
+     DataKinds
+   , KindSignatures
+   , OverloadedStrings
+   , TypeFamilies, NoMonoLocalBinds
+   #-}
 -- {-# LANGUAGE GADTs, NoMonoLocalBinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies, NoMonoLocalBinds #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}

@@ -1,4 +1,4 @@
-module Vivid.NoPlugins (
+module Vivid.NoGlobalState (
      module Vivid.NoPluginsNoGlobalState
    ) where
 

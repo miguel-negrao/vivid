@@ -1,5 +1,7 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE
+     DataKinds
+   , OverloadedStrings
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -75,7 +77,7 @@ numRunningSynths :: SDBody' a Signal
 numRunningSynths =
    addUGen $ UGen (UGName_S "NumRunningSynths") IR [] 1
 
--- } This is CPU-intensive: only use for debugging!
+-- | This is CPU-intensive: only use for debugging!
 -- 
 --   First argument is frequency of polling: the number of times per second to poll
 -- 

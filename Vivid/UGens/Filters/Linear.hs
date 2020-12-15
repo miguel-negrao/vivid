@@ -1,5 +1,8 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE
+     DataKinds
+   , FlexibleContexts
+   , OverloadedStrings
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -50,6 +53,7 @@ import Vivid.SynthDef
 import Vivid.UGens.Args
 import Vivid.SynthDef.FromUA
 
+import Control.Monad (forM)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Monoid
 import Data.Proxy
@@ -151,18 +155,24 @@ integrator = makeUGen
 --   Each tuple in the list argument is a triple of frequency, amplitude, and ring time
 -- 
 --   Can only run in 'AR'
-klank :: Args '["in"] '[] a => a -> [(Float, Float, Float)] -> SDBody a Signal
+klank :: (Args '["in"] '["freqScale", "freqOffset", "decayScale"] a, ToSig freq (SDBodyArgs a), ToSig amp (SDBodyArgs a), ToSig ring (SDBodyArgs a)) => a -> [(freq, amp, ring)] -> SDBody a Signal
 klank args resonators = do
    in' <- uaArgVal args (Proxy::Proxy "in")
-   addMonoUGen $ UGen (UGName_S (UTF8.fromString "Klank")) AR (outs in') 1
- where
-   outs inThing = [
-        inThing
-         -- These may be added as parameters in the future:
-      , Constant 1 -- freqscale
-      , Constant 0 -- freqoffset
-      , Constant 1 -- decayscale
-      ] <> concat [ map Constant [a,b,c] | (a,b,c) <- resonators ]
+   freqscale <-  uaArgValWDefault 1 args (Proxy::Proxy "freqScale")
+   freqoffset <- uaArgValWDefault 0 args (Proxy::Proxy "freqOffset")
+   decayscale <- uaArgValWDefault 1 args (Proxy::Proxy "decayScale")
+   resonators' <- forM resonators $ \(freq, amp, ring) -> do
+      f <- toSig freq
+      a <- toSig amp
+      r <- toSig ring
+      pure [f, a, r]
+   let outs = [
+            in'
+          , freqscale
+          , freqoffset
+          , decayscale
+          ] <> concat resonators'
+   addMonoUGen $ UGen (UGName_S (UTF8.fromString "Klank")) AR outs 1
 
 {-
 3 "Klank" - AR (1 outputs)
