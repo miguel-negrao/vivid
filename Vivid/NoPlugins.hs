@@ -66,7 +66,7 @@ import Data.ByteString (ByteString)
 import Data.Function ((&))
 import Data.Int
 import Data.Monoid
-import System.Random
+import System.Random hiding (uniform)
 
 import Control.Monad.IO.Class
 import GHC.TypeLits

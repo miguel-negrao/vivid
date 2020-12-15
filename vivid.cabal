@@ -1,5 +1,5 @@
 name:                vivid
-version:             0.4.2.3
+version:             0.4.2.4
 synopsis:            Sound synthesis with SuperCollider
 description:         
   Music and sound synthesis with SuperCollider.
@@ -48,7 +48,7 @@ author:              Tom Murphy
 maintainer:          Tom Murphy
 category:            Audio, Music, Sound
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 stability:           experimental
 license:             GPL
 
@@ -269,6 +269,7 @@ library
   ghc-options:
     -O2
     -fconstraint-solver-iterations=0
+  default-language: Haskell2010
 
 -- TODO:
 -- testsuite 
