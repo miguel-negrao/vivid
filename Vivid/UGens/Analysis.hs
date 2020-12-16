@@ -11,7 +11,7 @@ module Vivid.UGens.Analysis (
      ampComp
 ---   , ampCompA
    , amplitude
----   , detectSilence
+   , detectSilence
 ---   , loudness
 ---   , peak
 ---   , peakFollower
@@ -70,8 +70,11 @@ amplitude = makeUGen
    (Vs::Vs '["in", "attackSecs", "releaseSecs"])
    (attackSecs_ (0.01::Float), releaseSecs_ (0.01::Float))
 
---- detectSilence ::
---- detectSilence =
+detectSilence :: Args '["in"] '["amp", "time", "doneAction"] a => a -> SDBody a Signal
+detectSilence = makeUGen
+   "DetectSilence" AR
+   (Vs::Vs '["in", "amp", "time", "doneAction"])
+   (amp_ (0.0001::Float), time_ (0.1::Float), doneAction_ (0::Float))
 
 
 --- loudness ::

@@ -54,6 +54,9 @@ active_ = UA . toSig
 add_ :: ToSig s as => s -> UA "add" as
 add_ = UA . toSig
 
+amp_ :: ToSig s as => s -> UA "amp" as
+amp_ = UA . toSig
+
 ampThreshold_ :: ToSig s as => s -> UA "ampThreshold" as
 ampThreshold_ = UA . toSig
 
@@ -608,6 +611,9 @@ threshold_ = UA . toSig
 -- | Alias for "threshold_"
 thresh_ :: ToSig s as => s -> UA "threshold" as
 thresh_ = threshold_
+
+time_ :: ToSig s as => s -> UA "time" as
+time_ = UA . toSig
 
 timeDispersion_ :: ToSig s as => s -> UA "timeDispersion" as
 timeDispersion_ = UA . toSig
