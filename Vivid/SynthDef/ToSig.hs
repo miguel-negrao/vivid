@@ -14,7 +14,7 @@
    , TypeFamilies, NoMonoLocalBinds
    , TypeSynonymInstances
    , UndecidableInstances
-
+   , TypeOperators
    , NoMonomorphismRestriction
    #-}
 

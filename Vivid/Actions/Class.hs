@@ -29,8 +29,9 @@ import Vivid.SynthDef.Types (SynthDef)
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.ByteString (ByteString)
+import Data.Kind (Type)
 
-class (Monad m , MonadIO m) => VividAction (m :: * -> *) where
+class (Monad m , MonadIO m) => VividAction (m :: Type -> Type) where
 
    -- | Send an 'OSC' message to the SuperCollider server
    callOSC :: OSC -> m ()

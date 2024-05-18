@@ -26,6 +26,7 @@ module Vivid.GlobalState (
    , getNextAvailable
    ) where
 
+import Control.Monad (void)
 import Control.Concurrent (ThreadId, forkIO)
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM

@@ -52,10 +52,11 @@ import Data.Monoid
 import Data.Proxy
 import GHC.Exts
 import GHC.TypeLits
+import Data.Kind (Type)
 
 type SDBody a = SDBody' (SDBodyArgs a)
 
-class FromUA (a :: *) where
+class FromUA (a :: Type) where
    type UAsArgs a :: [Symbol]
    type SDBodyArgs a :: [Symbol]
    fromUA :: a -> SDBody a [(String, Signal)]
