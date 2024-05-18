@@ -16,7 +16,7 @@ module Vivid.UGens.Maths (
    -- , integrator
    , leastChange
    , linExp
----   , linLin
+   , linLin
 ---   , modDif
    , mostChange
    , mulAdd
@@ -34,6 +34,7 @@ import Vivid.SynthDef
 import Vivid.SynthDef.FromUA
 -- import Vivid.UGens.Algebraic
 import Vivid.UGens.Args
+import Vivid.UGens.Algebraic
 
 import qualified Data.ByteString.UTF8 as UTF8 (fromString)
 import Data.Proxy
@@ -76,11 +77,11 @@ leastChange :: (ToSig s0 as, ToSig s1 as) => s0 -> s1 -> SDBody' as Signal
 leastChange = leastOrMostChange "LeastChange"
 
 leastOrMostChange :: (ToSig s0 as, ToSig s1 as) => String -> s0 -> s1 -> SDBody' as Signal
-leastOrMostChange sdName s0 s1 = do
+leastOrMostChange ugenName s0 s1 = do
    s0' <- toSig s0
    s1' <- toSig s1
    calcRate <- (maximum::Ord a=>[a]->a) <$> sequence (map getCalcRate [s0', s1'])
-   addUGen $ UGen (UGName_S . UTF8.fromString $ sdName) calcRate [s0',s1'] 1
+   addUGen $ UGen (UGName_S . UTF8.fromString $ ugenName) calcRate [s0',s1'] 1
 
 -- | "Converts a linear range of values to an exponential range of values."
 -- 
@@ -112,8 +113,36 @@ linExp as = do
       (Vs::Vs '["in", "srclo", "srchi", "dstlo", "dsthi"])
       (srclo_ (0::Float), srchi_ (1::Float), dstlo_ (1::Float), dsthi_ (2::Float))
 
--- linLin ::
--- linLin =
+
+-- | "Converts a linear range of values to an another linear range of values."
+-- 
+--   Args:
+-- 
+--   * *in* -  The input signal to convert.
+-- 
+--   * *srclo* - Lower limit of input range.
+-- 
+--   * *srchi* - Upper limit of input range.
+-- 
+--   * *dstlo* - Lower limit of output range.
+-- 
+--   * *dsthi* - Upper limit of output range.
+-- 
+--   This will have the same calculation rate as its \"in\" argument
+linLin :: Args '["in"] '["srclo", "srchi", "dstlo", "dsthi"] a => a -> SDBody a Signal
+linLin as = do
+   srclo <- uaArgValWDefault (-1::Float) as (Proxy::Proxy "srclo")
+   srchi <- uaArgValWDefault (1::Float) as (Proxy::Proxy "srchi")
+   dstlo <- uaArgValWDefault (0::Float) as (Proxy::Proxy "dstlo")
+   dsthi <- uaArgValWDefault (1::Float) as (Proxy::Proxy "dsthi")
+   in' <- as `uaArgVal` (Proxy::Proxy "in")
+   let 
+      scale  = (dsthi ~- dstlo) ~/ (srchi ~- srclo)
+      offset = dstlo ~- (scale ~* srclo)
+   getCalcRate in' >>= \case
+         AR -> mulAdd (in_ in',  mul_ scale, add_ offset) 
+         KR -> (in' ~* scale) ~+ offset
+         _ -> error "linExp: 'in' value must be at AR/KR"
 
 --- modDif ::
 --- modDif =

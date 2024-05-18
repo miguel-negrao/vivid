@@ -29,7 +29,7 @@
 {-# LANGUAGE NoUndecidableInstances #-}
 {-# LANGUAGE NoIncoherentInstances #-}
 
-{-# LANGUAGE ExistentialQuantification #-}
+-- {-# LANGUAGE ExistentialQuantification #-}
 
 module Vivid.UGens (
      module Vivid.UGens.Args

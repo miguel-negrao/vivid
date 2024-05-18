@@ -1,13 +1,15 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExtendedDefaultRules #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies, NoMonoLocalBinds #-}
+{-# LANGUAGE
+     DataKinds
+   , ExtendedDefaultRules
+   , FlexibleContexts
+   , LambdaCase
+   , OverloadedStrings
+   , TypeFamilies, NoMonoLocalBinds
 
-{-# LANGUAGE NoIncoherentInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE NoUndecidableInstances #-}
+   , NoIncoherentInstances
+   , NoMonomorphismRestriction
+   , NoUndecidableInstances
+   #-}
 
 module Vivid.UGens.Buffer (
 
@@ -43,7 +45,10 @@ module Vivid.UGens.Buffer (
 ---   , multiTap
    , phasor
    , playBuf
+   , playBufPoly
+
    , recordBuf
+   , recordBufPoly
 ---   , scopeOut
 ---   , shaper
      -- In Vivid.UGens.Generators.Granular
@@ -70,13 +75,14 @@ import GHC.Real (Ratio((:%)))
 --   and 'frames_' for \"Vivid.UGens.Args.numFrames\"
 localBuf :: Args '["numChans","numFrames"] '[] a => a -> SDBody a Signal
 localBuf args = do
-   mlb <- addUGen $ UGen (UGName_S "MaxLocalBufs") IR [Constant 1] 1
+   mlb <- addOrIncrementMaxLocalBufs
    numChannels' <- uaArgVal args (Proxy::Proxy "numChans")
    numFrames' <- uaArgVal args (Proxy::Proxy "numFrames")
    -- Another example where the args in sclang and scsynth are in different orders:
    addUGen $ UGen (UGName_S "LocalBuf") IR [numChannels', numFrames', mlb] 1
 
 
+{-# DEPRECATED playBuf "use playBufPoly instead (and use bufRateScale and set doneAction)" #-}
 -- | Unlike in SC, \"doneAction\\" defaults to 2
 -- 
 --   Also, the default rate is the 'bufRateScale' of the buffer
@@ -93,6 +99,12 @@ playBuf args = ($ args) $ makeUGen
           -- todo : put bufratescale on all of em if we decide to keep this behavior
    defaultRate = bufRateScale $ uaArgVal args (V::V "buf")
 
+playBufPoly :: (Args '["buf"] '["rate","trigger","startPos","loop","doneAction"] a) => Int -> a -> SDBody a [Signal]
+playBufPoly numChans args = ($ args) $ makePolyUGen numChans
+   "PlayBuf" AR
+   (Vs::Vs '["buf","rate","trigger","startPos","loop","doneAction"])
+   (rate_ (1::Float), trigger_ ((1)::Float), startPos_ ((0)::Float)
+   ,loop_ ((0)::Float), doneAction_ (0::Float)) -- NOTE doneAction is back to 0...! Good idea? (TODO)
 
 -- | Unlike in SC, "doneAction" defaults to 2 and "loop" defaults to 0
 recordBuf :: (Args '["buf","in"] '["offset","recLevel","preLevel","run","loop","trigger","doneAction"] a) => a -> SDBody a Signal
@@ -101,6 +113,16 @@ recordBuf = makeUGen
    (Vs::Vs '["buf","offset","recLevel","preLevel","run","loop","trigger","doneAction","in"])
    -- this is another example of different order:
    (offset_ ((0)::Float), recLevel_ ((1)::Float), preLevel_ ((0)::Float), run_ ((1)::Float), loop_ ((0)::Float), trigger_ ((1)::Float), doneAction_ ((2)::Float))
+
+-- | Unlike in SC, "doneAction" defaults to 2 and "loop" defaults to 0
+recordBufPoly :: (Args '["buf","in"] '["offset","recLevel","preLevel","run","loop","trigger","doneAction"] a) => Int -> a -> SDBody a [Signal]
+recordBufPoly numChans = makePolyUGen numChans
+   "RecordBuf" AR
+   (Vs::Vs '["buf","offset","recLevel","preLevel","run","loop","trigger","doneAction","in"])
+   -- this is another example of different order:
+   (offset_ ((0)::Float), recLevel_ ((1)::Float), preLevel_ ((0)::Float), run_ ((1)::Float), loop_ ((0)::Float), trigger_ ((1)::Float), doneAction_ ((2)::Float))
+
+
 
 -- | Defaults to 'KR'. Can be 'IR' too but be careful that the buffer doesn't change if so!
 bufChannels :: (Args '["buf"] '[] a) => a -> SDBody a Signal
@@ -122,7 +144,7 @@ bufDur = makeUGen
 -- 
 --   Note you don't need to use "buf_" when you use this
 bufFrames :: ToSig s as => s -> SDBody' as Signal
-bufFrames = (flip (.)) buf_ $ makeUGen
+bufFrames = (. buf_) $ makeUGen
    "BufFrames" KR
    (Vs::Vs '["buf"])
    NoDefaults
@@ -144,7 +166,7 @@ bufRateScale = (. buf_) $ makeUGen
 -- 
 --   Note you don't need to use "buf_" when you use this
 bufSampleRate :: ToSig s as => s -> SDBody' as Signal
-bufSampleRate = (flip (.)) buf_ $ makeUGen
+bufSampleRate = (. buf_) $ makeUGen
    "BufSampleRate" KR
    (Vs::Vs '["buf"])
    NoDefaults
@@ -155,7 +177,7 @@ bufSampleRate = (flip (.)) buf_ $ makeUGen
 -- 
 --   Note you don't need to use "buf_" when you use this
 bufSamples :: ToSig s as => s -> SDBody' as Signal
-bufSamples = (flip (.)) buf_ $ makeUGen
+bufSamples = (. buf_) $ makeUGen
    "BufSamples" KR
    (Vs::Vs '["buf"])
    NoDefaults

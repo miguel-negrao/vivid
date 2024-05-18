@@ -52,8 +52,8 @@ module Vivid.SCServer (
 
    -- * Manual management of SC server connection
 
-   , createSCServerConnection
-   , closeSCServerConnection
+   , createSCServerConnection'
+   , closeSCServerConnection'
    , SCConnectConfig(..)
    , defaultConnectConfig
 
@@ -67,14 +67,13 @@ import Vivid.OSC
 import Vivid.OSC.Bundles (initTreeCommand)
 import qualified Vivid.SC.Server.Commands as SCCmd
 import Vivid.SC.Server.Types (Group(..), ParGroup(..))
-import qualified Vivid.SC.Server.Commands as SCCmd
 
 import Vivid.Actions.Class
 import Vivid.SCServer.Connection
 import Vivid.SCServer.State
 import Vivid.SCServer.Types
 
-import qualified Data.ByteString.UTF8 as UTF8 (fromString)
+-- import qualified Data.ByteString.UTF8 as UTF8 (fromString)
 import Data.Int (Int32)
 -- BBP hack:
 import Prelude
@@ -153,13 +152,13 @@ writeBufferWith args bufId fPath =
       SCCmd.b_write
          bufId
          fPath
-         "wav"
-         "float"
+         "wav" -- TODO!
+         "float" -- less important, but TODO
          -- Num frames:
          Nothing
          -- Start frame:
          0
-         -- Whether to leave the file open (useful for diskOut)
+         -- Whether to leave the file open (useful for diskOut):
          (_wb_keepOpen args)
          -- We make this synchronous because what if you send a
          -- "/b_write" then a "/quit"?(!):

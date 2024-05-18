@@ -23,6 +23,7 @@ module Vivid.Actions.NRT (
      NRT -- (..) -- ^ May not be exported in the future
    , writeNRT
    , writeNRTScore
+   , encodeNRTScore
    , runNRT
 
    , writeNRTWith
@@ -33,50 +34,64 @@ module Vivid.Actions.NRT (
 import qualified Vivid.SC.Server.Commands as SCCmd
 
 import Vivid.Actions.Class
-import Vivid.Actions.IO () -- maybe not in the future
 import Vivid.OSC
 import Vivid.OSC.Bundles (encodeOSCBundles)
 import Vivid.SCServer
 -- import Vivid.SCServer.State
-import Vivid.SynthDef (encodeSD, sdToLiteral)
+import Vivid.SynthDef (sdToLiteral)
 import Vivid.SynthDef.Types
 
 import Control.Applicative
 -- import Control.Arrow (first, second)
 import Control.Exception
 import Control.Monad
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.State (get, modify, execStateT, StateT)
+import Control.Monad.State (get, modify, execStateT, StateT, state)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS (writeFile, hPut)
-import qualified Data.ByteString.UTF8 as UTF8
 import Data.Char (toLower)
-import Data.Hashable (hash)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Monoid
 import qualified Data.Set as Set
-import System.Directory (canonicalizePath, getTemporaryDirectory, removeFile)
+import System.Directory (canonicalizePath, getTemporaryDirectory) -- , removeFile)
 import System.Exit
 import System.FilePath (takeExtension)
 import System.IO (openBinaryTempFile, hClose)
 import System.Process (system)
 import Prelude
 
--- We keep track of the maximum timestamp so that the generated audio file doesn't cut off before a final 'wait' finishes:
-type NRT = StateT (Timestamp, Maximum Timestamp, Map Timestamp [Either ByteString OSC]) IO
+data NRTState
+   = NRTState {
+     nrtState_now :: Timestamp
+     -- We keep track of the maximum timestamp so that the generated audio file
+     --   doesn't cut off before a final 'wait' finishes:
+   , nrtState_maxTime :: Maximum Timestamp
+   , nrtState_messages :: Map Timestamp [Either ByteString OSC]
+   , nrtState_bufferIds :: [BufferId]
+   , nrtState_nodeIds :: [NodeId]
+   , nrtState_syncIds :: [SyncId]
+   }
+
+type NRT = StateT NRTState IO
+
+callMessage :: Either ByteString OSC -> NRT ()
+callMessage msg = do
+   now <- getTime
+   -- Writing it this way so that we can be crystal-clear that it's going on
+   --   the end of the list (future: use dlist for efficiency):
+   modify $ \ns -> ns {
+        nrtState_messages =
+           case Map.lookup now $ nrtState_messages ns of
+              Nothing ->   Map.insert now [msg]           $ nrtState_messages ns
+              Just msgs -> Map.insert now (msgs ++ [msg]) $ nrtState_messages ns
+      }
 
 instance VividAction NRT where
    callOSC :: OSC -> NRT ()
-   callOSC message = do
-      now <- getTime
-      modify ((\f (a,b,c)->(a,b,f c)) (Map.insertWith (<>) now [Right message]))
+   callOSC = callMessage . Right
 
    callBS :: ByteString -> NRT ()
-   callBS message = do
-      now <- getTime
-      modify $ \(a,b,x) ->
-         (a, b, Map.insertWith (<>) now [Left message] x)
+   callBS = callMessage . Left
 
    sync :: NRT ()
    sync = return ()
@@ -85,35 +100,50 @@ instance VividAction NRT where
    waitForSync _ = return ()
 
    wait :: Real n => n -> NRT ()
-   wait t = modify $ \(oldT, maxT, c) ->
-      let newT = oldT `addSecs` realToFrac t
-      in (newT, Maximum newT `max` maxT, c)
+   wait t = modify $ \ns ->
+      let newT = nrtState_now ns `addSecs` realToFrac t
+      in ns {
+            nrtState_now = newT
+          , nrtState_maxTime = Maximum newT `max` (nrtState_maxTime ns)
+          }
 
    getTime :: NRT Timestamp
-   getTime = (\(t,_,_) -> t) <$> get
+   getTime = nrtState_now <$> get
 
    newBufferId :: NRT BufferId
-   newBufferId = liftIO newBufferId
+   newBufferId = state $ \ns ->
+      let (x:xs) = nrtState_bufferIds ns
+      in (x, ns { nrtState_bufferIds = xs})
 
    newNodeId :: NRT NodeId
-   newNodeId = liftIO newNodeId
+   newNodeId = state $ \ns ->
+      let (x:xs) = nrtState_nodeIds ns
+      in (x, ns { nrtState_nodeIds = xs})
 
    newSyncId :: NRT SyncId
-   newSyncId = liftIO newSyncId
+   newSyncId =  state $ \ns ->
+      let (x:xs) = nrtState_syncIds ns
+      in (x, ns { nrtState_syncIds = xs})
 
    fork :: NRT () -> NRT ()
    fork action = do
-      (timeOfFork, oldMaxTime, _) <- get
+      NRTState{nrtState_now=timeOfFork, nrtState_maxTime = oldMaxTime} <- get
       action
-      modify $ \(_timeAfterFork_ignore, newMaxTime, c) ->
+      modify $ \ns -> ns {
+           nrtState_now = timeOfFork
            -- this 'max' probably isn't necessary:
-         (timeOfFork, newMaxTime `max` oldMaxTime :: Maximum Timestamp, c)
+         , nrtState_maxTime = (nrtState_maxTime ns) `max` oldMaxTime :: Maximum Timestamp
+         }
 
    defineSD :: SynthDef a -> NRT ()
    defineSD synthDef = do
-      modify . (\f (a,b,c)->(a,b,f c)) $ Map.insertWith mappendIfNeeded (Timestamp 0) [
-           Right $ SCCmd.d_recv [sdToLiteral synthDef] Nothing
-         ]
+      modify $ \ns -> ns {
+           nrtState_messages =
+              let cmd = [
+                     Right $ SCCmd.d_recv [sdToLiteral synthDef] Nothing
+                   ]
+              in Map.insertWith mappendIfNeeded (Timestamp 0) cmd (nrtState_messages ns)
+         }
     where
       mappendIfNeeded :: (Ord a) {- , Monoid m)-} => [a] -> [a] -> [a]
       mappendIfNeeded maybeSubset maybeSuperset =
@@ -121,13 +151,46 @@ instance VividAction NRT where
             then maybeSuperset
             else maybeSubset <> maybeSuperset
 
+-- This way we can be positive that it's going to the end of the list:
+_addAtTime :: Timestamp -> Either ByteString OSC -> Map Timestamp [Either ByteString OSC] -> Map Timestamp [Either ByteString OSC]
+_addAtTime t msg m =
+   -- Separating lookup and insert is just being extra careful that the message
+   --   goes on the end:
+   --   (Why do you want that? - Well, one example is if you read a buffer in
+   --   at time 0 and then immediately play it. You want to read it *before*
+   --   you play it :) )
+   Map.insert t v m
+ where
+   v :: [Either ByteString OSC]
+   v = case Map.lookup t m of
+      Nothing -> [msg]
+      Just l -> l ++ [msg] -- Could use a dlist here to snoc
+
+
 runNRT :: NRT a -> IO [OSCBundle]
 runNRT action = do
-   (_, Maximum maxTSeen, protoBundles_woLast)
-      <- execStateT action (Timestamp 0, Maximum (Timestamp 0), Map.empty)
-   let protoBundles = Map.insertWith (<>) maxTSeen [] protoBundles_woLast
+   result <- execStateT action startingNRTState
+
+   let Maximum maxTSeen = nrtState_maxTime result
+       protoBundles_woLast :: Map Timestamp [Either ByteString OSC]
+       protoBundles_woLast = nrtState_messages result
+       protoBundles = Map.insertWith (<>) maxTSeen [] protoBundles_woLast
+
    return [ OSCBundle t as | (t, as) <- Map.toAscList protoBundles ]
 
+startingNRTState :: NRTState
+startingNRTState = NRTState {
+     nrtState_now = Timestamp 0
+   , nrtState_maxTime = Maximum (Timestamp 0)
+   , nrtState_messages = Map.empty
+   , nrtState_bufferIds = map BufferId [0..]
+   , nrtState_nodeIds = map NodeId [2..] -- TODO: make sure this is good
+   , nrtState_syncIds = map SyncId [0..]
+   }
+
+encodeNRTScore :: NRT x -> IO ByteString
+encodeNRTScore action =
+   encodeOSCBundles <$> runNRT action
 
 -- | Generate a file of actions that SC can use to do NRT with.
 -- 
@@ -139,7 +202,7 @@ runNRT action = do
 --   > scsynth -N /tmp/foo.osc _ /tmp/NRTout.aiff 44100 AIFF int16
 writeNRTScore :: FilePath -> NRT a -> IO ()
 writeNRTScore path action =
-   (BS.writeFile path . encodeOSCBundles) =<< runNRT action
+   BS.writeFile path =<< encodeNRTScore action
 
 
 -- | Generate an audio file from an NRT action -- this can write songs far faster
@@ -180,10 +243,11 @@ writeNRTWith nrtArgs fPath nrtActions = do
             (".aif", "AIFF")
           , (".aiff", "AIFF")
           , (".wav", "WAV")
+          , (".flac", "FLAC")
+          , (".raw", "raw")
             -- todo: these formats seem not to work.
             -- Try it on more-recent versions of SC:
-          -- ".flac" -> "FLAC"
-          -- ".ogg" -> "vorbis"
+          -- , (".ogg", "VORBIS")
           ]
 
    tempDir <- canonicalizePath =<< getTemporaryDirectory

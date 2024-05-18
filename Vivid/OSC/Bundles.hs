@@ -1,7 +1,10 @@
 -- | Vivid-specific OSC Bundle encoding
 
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE
+     LambdaCase
+   , OverloadedStrings
+   #-}
+   -- , Safe
 
 module Vivid.OSC.Bundles (
      encodeOSCBundles

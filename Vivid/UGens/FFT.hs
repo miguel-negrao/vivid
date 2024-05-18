@@ -33,7 +33,7 @@ module Vivid.UGens.FFT (
 
    -- * FFT functions
 
----   , pv_add
+   , pv_add
    , pv_binScramble
    , pv_binShift
 ---   , pv_binWipe
@@ -41,10 +41,10 @@ module Vivid.UGens.FFT (
 ---   , pv_chainUGen
    , pv_conformalMap
    , pv_conj
----   , pv_copy
----   , pv_copyPhase
+   , pv_copy
+   , pv_copyPhase
    , pv_diffuser
----   , pv_div
+   , pv_div
 ---   , pv_hainsworthFoote
 ---   , pv_jensenAndersen
    , pv_localMax
@@ -58,9 +58,9 @@ module Vivid.UGens.FFT (
    , pv_magShift
    , pv_magSmear
    , pv_magSquared
----   , pv_max
----   , pv_min
----   , pv_mul
+   , pv_max
+   , pv_min
+   , pv_mul
    , pv_phaseShift
    , pv_phaseShift270
    , pv_phaseShift90
@@ -69,6 +69,8 @@ module Vivid.UGens.FFT (
    , pv_rectComb
 ---   , pv_rectComb2
    ) where
+
+import Data.ByteString (ByteString)
 
 import Vivid.SC.SynthDef.Types (CalculationRate(..))
 import Vivid.SynthDef
@@ -120,9 +122,9 @@ This can be a useful indicator of the perceptual brightness of a signal.
 --- unpackFFT =
 -- frombin: 0
 
---- pv_add :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
---- pv_add bufA bufB =
-
+pv_add :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_add =
+   twoArgUGen "PV_Add"
 
 pv_binScramble :: (Args '["buf"] '["wipe", "width", "trigger"] a) => a -> SDBody a Signal
 pv_binScramble = makeUGen
@@ -160,11 +162,21 @@ pv_conj = makeUGen
    (Vs::Vs '["buf"])
    NoDefaults
 
---- pv_copy :: (ToSig bufA as, ToSig bufB as) => SDBody' as Signal
---- pv_copy bufA bufB =
+pv_copy :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_copy =
+   twoArgUGen "PV_Copy"
 
---- pv_copyPhase :: (ToSig bufA as, ToSig bufB as) => SDBody' as Signal
---- pv_copyPhase bufA bufB =
+pv_copyPhase :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_copyPhase =
+   twoArgUGen "PV_CopyPhase"
+
+
+twoArgUGen :: (ToSig s0 as, ToSig s1 as) => ByteString -> s0 -> s1 -> SDBody' as Signal
+twoArgUGen ugenName s0 s1 = do
+   s0' <- toSig s0
+   s1' <-  toSig s1
+   addMonoUGen $ UGen (UGName_S ugenName) KR [s0', s1'] 1
+
 
 pv_diffuser :: (Args '["buf"] '["trigger"] a) => a -> SDBody a Signal
 pv_diffuser = makeUGen
@@ -172,8 +184,9 @@ pv_diffuser = makeUGen
    (Vs::Vs '["buf", "trigger"])
    (trig_ (0::Float))
 
---- pv_div :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
---- pv_div bufA bufB =
+pv_div :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_div =
+   twoArgUGen "PV_Div"
 
 --- pv_hainsworthFoote ::
 --- pv_hainsworthFoote =
@@ -241,13 +254,17 @@ pv_magSquared = makeUGen
    (Vs::Vs '["buf"])
    NoDefaults
 
---- pv_max :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
---- pv_max bufA bufB = do
-   --
---- pv_min :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
---- pv_min bufA bufB =
---- pv_mul :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
---- pv_mul bufA bufB =
+pv_max :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_max =
+   twoArgUGen "PV_Max"
+
+pv_min :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_min =
+   twoArgUGen "PV_Min"
+
+pv_mul :: (ToSig bufA as, ToSig bufB as) => bufA -> bufB -> SDBody' as Signal
+pv_mul =
+   twoArgUGen "PV_Mul"
 
 pv_phaseShift :: (Args '["buf", "shift"] '["integrate"] a) => a -> SDBody a Signal
 pv_phaseShift = makeUGen

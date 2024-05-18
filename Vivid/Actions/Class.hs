@@ -5,8 +5,10 @@
 --   upcoming versions (as early as the next release) - so don't get used
 --   to it!
 
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE
+     KindSignatures
+   , Rank2Types
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -27,8 +29,6 @@ import Vivid.SynthDef.Types (SynthDef)
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.UTF8 as UTF8
-import Data.Int
 
 class (Monad m , MonadIO m) => VividAction (m :: * -> *) where
 

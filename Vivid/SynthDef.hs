@@ -37,12 +37,14 @@
 
 {-# LANGUAGE NoRebindableSyntax #-}
 
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies, NoMonoLocalBinds #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE
+     BangPatterns
+   , DataKinds
+   , LambdaCase
+   , OverloadedStrings
+   , TypeFamilies, NoMonoLocalBinds
+   , ViewPatterns
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -57,6 +59,7 @@ module Vivid.SynthDef (
   , addUGen
   , addMonoUGen
   , addPolyUGen
+  , addOrIncrementMaxLocalBufs
   , ToSig(..)
   , Signal(..)
   , encodeSD
@@ -105,7 +108,6 @@ import Vivid.SynthDef.Types
 import Vivid.SynthDef.FromUA (SDBody)
 
 -- import Control.Applicative
-import Control.Arrow (first{-, second-})
 import Control.Monad.State (get, put, modify, execState)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.UTF8 as UTF8
@@ -294,6 +296,28 @@ addPolyUGen' ugen = do
       }
    return $ map (UGOut anId) [0.. toEnum (_ugenNumOuts ugen - 1)]
 
+-- In all (as of this writing) other cases, UGens are 'write only': you can
+--   just add them, not edit or remove them. However! SC has a special case
+--   where if you create a LocalBuf, you need to have previously a
+--   'MaxLocalBufs' which says how many LocalBufs there are in the whole graph.
+--   So for that, we update our 'MaxLocalBufs'
+addOrIncrementMaxLocalBufs :: SDBody' args Signal
+addOrIncrementMaxLocalBufs = do
+   (ids, synthDef, argList) <- get
+   case Map.toList $ Map.filter isMLB $ _sdUGens synthDef of
+      [] -> addMonoUGen $ UGen (UGName_S "MaxLocalBufs") IR [Constant 1] 1
+      [(ugIndex,     UGen (UGName_S "MaxLocalBufs") IR [Constant numPreviously]      1)] -> do
+         let newUG = UGen (UGName_S "MaxLocalBufs") IR [Constant (numPreviously + 1)] 1
+             newSD = synthDef { _sdUGens = Map.insert ugIndex newUG $ _sdUGens synthDef }
+         put $ (ids, newSD, argList)
+         pure $ UGOut ugIndex 0
+      [e] -> error $ "Incorrectly constructed MLB?: "++show e
+      es -> error $ "Multiple MLB?: "++show es
+ where
+   isMLB = \case
+      UGen (UGName_S "MaxLocalBufs") _ _ _ -> True
+      _ -> False
+
 -- | Define a Synth Definition
 sd :: VarList argList => argList -> SDBody' (InnerVars argList) [Signal] -> SynthDef (InnerVars argList)
 sd params theState =
@@ -306,10 +330,14 @@ sdNamed name params theState =
 
 makeSynthDef :: VarList argList => SDName -> argList -> SDBody' (InnerVars argList) [Signal] -> SynthDef (InnerVars argList)
 makeSynthDef name params theState =
-   let theSD = SynthDef name (map (first UTF8.fromString) paramList) Map.empty
-       (paramList, argSet) = makeTypedVarList params
-   in (\(_,b,_)->b) $ execState theState $
-         ({- id supply: -} [0 :: Int ..], theSD, argSet)
+   b
+ where
+   paramList :: [(String, Float)]
+   (paramList, argSet) = makeTypedVarList params
+
+   sdBeforeBody = SynthDef name [ (UTF8.fromString k, v) | (k, v) <- paramList ] Map.empty
+   (_,b,_) = execState theState $
+      ({- id supply: -} [0 :: Int ..], sdBeforeBody, argSet)
 
 -- | Set the calculation rate of a UGen
 -- 
@@ -341,15 +369,16 @@ makeSynthDef name params theState =
    return i'
 
 getCalcRate :: Signal -> SDBody' args CalculationRate
-getCalcRate (Constant _) = return IR
-getCalcRate (Param _) = return KR
-getCalcRate (UGOut theUG _) = do
-   -- Note: this assumes updates to the ugen graph are only appends
-   -- (so don't break that invariant if you build your own graph by hand!):
-   (_, ugenGraph, _) <- get
-   case Map.lookup theUG (_sdUGens ugenGraph) of
-      Just ug -> return $ _ugenCalculationRate ug
-      Nothing -> error "that output isn't in the graph!"
+getCalcRate = \case
+   Constant _ -> pure IR
+   Param _ -> pure KR
+   UGOut theUG _ -> do
+      -- Note: this assumes updates to the ugen graph are only appends
+      -- (so don't break that invariant if you build your own graph by hand!):
+      (_, ugenGraph, _) <- get
+      case Map.lookup theUG (_sdUGens ugenGraph) of
+         Just ug -> return $ _ugenCalculationRate ug
+         Nothing -> error "that output isn't in the graph!"
 
 
 -- | Like 'Vivid.SCServer.shrinkSynthArgs' but for 'SynthDef's

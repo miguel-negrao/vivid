@@ -1,5 +1,7 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE
+     DataKinds
+   , KindSignatures
+   #-}
 
 {-# LANGUAGE NoIncoherentInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
@@ -19,7 +21,6 @@ module Vivid.SCServer.Types (
    , IsGroup
    ) where
 
-import Data.Int
 import GHC.TypeLits
 import Vivid.SC.Server.Types
 import Vivid.SynthDef.TypesafeArgs

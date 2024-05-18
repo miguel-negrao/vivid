@@ -1,7 +1,10 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Vivid (
-     module Vivid.NoPlugins
+     module Vivid.NoPluginsNoGlobalState
+   , module Vivid.GlobalState
    ) where
 
-import Vivid.NoPlugins
+import Vivid.NoPluginsNoGlobalState
+import Vivid.GlobalState
+

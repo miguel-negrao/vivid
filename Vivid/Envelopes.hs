@@ -161,7 +161,7 @@ envCurveFloatNumber = \case
    _ -> 0
 
 
-env :: Float -> [(Float, Float)] -> EnvCurve -> EnvLiterally a
+env :: Float -> [(Float, Float)] -> EnvCurve -> EnvLiterally args
 env firstPoint pointsAndLengths curve = EnvLiterally {
      _envLiterally_initialVal = firstPoint
    , _envLiterally_releaseNode = Nothing
